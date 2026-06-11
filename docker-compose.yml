@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  atbot:
+    build: .
+    container_name: autotrader_bot
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
+    environment:
+      # Optional: override .env here if you prefer
+      - TZ=Europe/London
