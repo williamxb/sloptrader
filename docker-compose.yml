@@ -2,6 +2,7 @@ version: '3.8'
 
 services:
   atbot:
+    image: ghcr.io/williamxb/sloptrader:latest
     build: .
     container_name: autotrader_bot
     restart: unless-stopped
