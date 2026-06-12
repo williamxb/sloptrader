@@ -65,10 +65,7 @@ class Notifier(commands.Cog):
                     title = car.get("title", "Unknown Title")
                     subtitle = car.get("subTitle", "")
                     price = car.get("price", "Unknown Price")
-                    dealer_link = car.get("dealerLink")
-                    link = dealer_link if isinstance(dealer_link, str) and dealer_link else f"https://www.autotrader.co.uk/car-details/{advert_id}"
-                    if not link.startswith("http"):
-                        link = "https://www.autotrader.co.uk" + link
+                    link = f"https://www.autotrader.co.uk/car-details/{advert_id}"
                     
                     badges = car.get("badges", [])
                     mileage = "Unknown Mileage"
