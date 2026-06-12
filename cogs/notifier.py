@@ -44,6 +44,18 @@ class Notifier(commands.Cog):
             
             channel = self.bot.get_channel(channel_id)
             if not channel:
+                try:
+                    channel = await self.bot.fetch_channel(channel_id)
+                except Exception:
+                    pass
+                    
+            if not channel and user_id:
+                try:
+                    channel = await self.bot.fetch_user(user_id)
+                except Exception:
+                    pass
+
+            if not channel:
                 logger.warning(f"Could not find channel with ID {channel_id} for Search #{search['id']}")
                 continue
 
