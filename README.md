@@ -1,4 +1,4 @@
-# SlopTrader 🤖🚘
+# SlopTrader 💩🤖🚘
 
 In today’s fast-paced, ever-evolving digital landscape, finding the perfect vehicle is no longer a mere transaction—it is a journey. Welcome to SlopTrader, a robust, comprehensive, and synergistic Discord bot designed to seamlessly navigate the multifaceted tapestry of the AutoTrader ecosystem.
 
