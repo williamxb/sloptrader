@@ -5,10 +5,21 @@ import database
 import logging
 from typing import List, Optional
 
-try:
-    from autotrader_data import CAR_DATA
-except ImportError:
-    CAR_DATA = {}
+from datetime import datetime, timedelta
+
+_car_data_cache = None
+_car_data_timestamp = None
+
+def get_car_data():
+    global _car_data_cache, _car_data_timestamp
+    if _car_data_cache and _car_data_timestamp and datetime.utcnow() - _car_data_timestamp < timedelta(minutes=10):
+        return _car_data_cache
+    cached_data, _ = database.get_cache("makes_models")
+    if cached_data:
+        _car_data_cache = cached_data
+        _car_data_timestamp = datetime.utcnow()
+        return cached_data
+    return {}
 
 logger = logging.getLogger('discord')
 
@@ -16,17 +27,19 @@ from autotrader import AutoTraderClient
 at_client = AutoTraderClient()
 
 async def make_autocomplete(interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
-    makes = list(CAR_DATA.keys())
+    car_data = get_car_data()
+    makes = list(car_data.keys())
     return [
         app_commands.Choice(name=make, value=make)
         for make in makes if current.lower() in make.lower()
     ][:25]
 
 async def model_autocomplete(interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+    car_data = get_car_data()
     make = interaction.namespace.make
     
-    if make and make in CAR_DATA:
-        models = CAR_DATA[make]
+    if make and make in car_data:
+        models = car_data[make]
     else:
         models = []
 
@@ -114,7 +127,7 @@ class Commands(commands.Cog):
         filters.append({"filter": "price_search_type", "selected": ["total"]})
 
         # Save to database mapped to this channel
-        search_id = database.add_search(interaction.channel_id, filters, write_off_val)
+        search_id = database.add_search(interaction.channel_id, interaction.user.id, filters, write_off_val)
         
         await interaction.response.send_message(f"✅ Search #{search_id} added successfully! I will post new cars here.")
 

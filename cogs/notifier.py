@@ -28,6 +28,7 @@ class Notifier(commands.Cog):
         total_new_cars = 0
         for search in searches:
             channel_id = search["channel_id"]
+            user_id = search.get("user_id")
             filters = search["filters"]
             write_off_pref = search.get("write_off", "Include")
             
@@ -90,6 +91,21 @@ class Notifier(commands.Cog):
                     if attention:
                         subtitle = f"{attention} • {subtitle}"
                     
+                    # Extract listed date from advert_id
+                    listed_date = "Unknown"
+                    if isinstance(advert_id, str) and len(advert_id) >= 8 and advert_id[:8].isdigit():
+                        listed_date = f"{advert_id[:4]}-{advert_id[4:6]}-{advert_id[6:8]}"
+                        
+                    # Fetch extra details via GraphQL (with HTML scrape fallback)
+                    tracking = car.get("trackingContext", {}).get("advertContext", {})
+                    make = tracking.get("make")
+                    model = tracking.get("model")
+                    exact_price = tracking.get("price")
+                    
+                    details = await self.at_client.fetch_advert_details(advert_id, make=make, model=model, exact_price=exact_price)
+                    colour = details.get("colour", "Unknown")
+                    specs = details.get("specs", [])
+
                     # Build embed
                     embed = discord.Embed(
                         title=f"New Listing: {title}",
@@ -107,10 +123,24 @@ class Notifier(commands.Cog):
                         headline += f" | *{price_indicator}*"
                         
                     embed.add_field(name="Details", value=headline, inline=False)
+                    
+                    if colour != "Unknown":
+                        embed.add_field(name="Colour", value=colour, inline=True)
+                    if listed_date != "Unknown":
+                        embed.add_field(name="Listed Date", value=listed_date, inline=True)
+                        
+                    if specs:
+                        # Grab a few specs to keep it tidy
+                        specs_text = "\n".join(specs[:5])
+                        embed.add_field(name="Specs", value=specs_text, inline=False)
+                        
                     embed.add_field(name="Description", value=subtitle, inline=False)
                     
-                    # Add search ID to footer
-                    embed.set_footer(text=f"Search #{search['id']}")
+                    # Add search ID to footer (and fallback warning if needed)
+                    footer_text = f"Search #{search['id']}"
+                    if details.get("fallback"):
+                        footer_text += " • ⚠️ Details via HTML fallback"
+                    embed.set_footer(text=footer_text)
                     
                     # Make the image large
                     images = car.get("images", [])
@@ -118,7 +148,8 @@ class Notifier(commands.Cog):
                         embed.set_image(url=images[0])
                     
                     try:
-                        await channel.send(embed=embed)
+                        content = f"<@{user_id}>" if user_id else None
+                        await channel.send(content=content, embed=embed)
                     except discord.Forbidden:
                         logger.error(f"Missing permissions to send messages in channel {channel_id}")
                     except Exception as e:

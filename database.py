@@ -27,11 +27,45 @@ def setup_db():
         CREATE TABLE IF NOT EXISTS searches (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             channel_id INTEGER NOT NULL,
+            user_id INTEGER,
             filters TEXT NOT NULL,
             write_off TEXT DEFAULT 'Exclude'
         )
     ''')
     
+    # Create table for caching generic data
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS cache (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    conn.commit()
+    conn.close()
+
+def get_cache(key: str) -> tuple:
+    """Returns a tuple of (value: dict, updated_at: str) or (None, None) if not found."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT value, updated_at FROM cache WHERE key = ?', (key,))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return json.loads(row["value"]), row["updated_at"]
+    return None, None
+
+def set_cache(key: str, value: dict):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO cache (key, value, updated_at) 
+        VALUES (?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(key) DO UPDATE SET 
+        value=excluded.value, 
+        updated_at=CURRENT_TIMESTAMP
+    ''', (key, json.dumps(value)))
     conn.commit()
     conn.close()
 
@@ -50,10 +84,10 @@ def mark_advert_seen(advert_id: str):
     conn.commit()
     conn.close()
 
-def add_search(channel_id: int, filters: dict, write_off: str = "Exclude") -> int:
+def add_search(channel_id: int, user_id: int, filters: dict, write_off: str = "Exclude") -> int:
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('INSERT INTO searches (channel_id, filters, write_off) VALUES (?, ?, ?)', (channel_id, json.dumps(filters), write_off))
+    cursor.execute('INSERT INTO searches (channel_id, user_id, filters, write_off) VALUES (?, ?, ?, ?)', (channel_id, user_id, json.dumps(filters), write_off))
     search_id = cursor.lastrowid
     conn.commit()
     conn.close()
@@ -71,6 +105,7 @@ def get_all_searches() -> list:
         results.append({
             "id": row["id"],
             "channel_id": row["channel_id"],
+            "user_id": row["user_id"],
             "filters": json.loads(row["filters"]),
             "write_off": row["write_off"]
         })
@@ -88,6 +123,7 @@ def get_searches_for_channel(channel_id: int) -> list:
         results.append({
             "id": row["id"],
             "channel_id": row["channel_id"],
+            "user_id": row["user_id"],
             "filters": json.loads(row["filters"]),
             "write_off": row["write_off"]
         })

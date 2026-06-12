@@ -35,13 +35,27 @@ async def main():
         logger.error("No DISCORD_TOKEN found in environment variables. Please set it in a .env file.")
         return
 
-    # Check if car data needs generating (first startup)
-    if not os.path.exists("autotrader_data.py"):
-        logger.info("First startup detected: Generating AutoTrader car data dictionary. This will take ~30 seconds...")
+    from database import get_cache, set_cache
+    from datetime import datetime, timedelta
+
+    cached_data, updated_at = get_cache("makes_models")
+    needs_update = True
+    
+    if cached_data and updated_at:
+        # Check if older than 7 days
+        updated_dt = datetime.strptime(updated_at, "%Y-%m-%d %H:%M:%S")
+        if datetime.utcnow() - updated_dt < timedelta(days=7):
+            needs_update = False
+            logger.info("Car data cache is fresh.")
+
+    if needs_update:
+        logger.info("Generating/Updating AutoTrader car data dictionary. This will take ~30 seconds...")
         try:
             import scripts.update_car_data
-            await scripts.update_car_data.main()
-            logger.info("Car data generated successfully!")
+            car_data = await scripts.update_car_data.fetch_all_car_data()
+            if car_data:
+                set_cache("makes_models", car_data)
+                logger.info("Car data generated and cached successfully!")
         except Exception as e:
             logger.error(f"Failed to generate car data: {e}")
 

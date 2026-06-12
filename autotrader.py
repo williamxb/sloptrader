@@ -41,12 +41,12 @@ class AutoTraderClient:
                     "filters": filters,
                     "channel": "cars",
                     "page": 1,
-                    "sortBy": "relevance",
+                    "sortBy": "most_recent",
                     "listingType": None,
                     "searchId": "bot-search-id",
                     "featureFlags": ["USE_MULTI_CATEGORY_SEARCH"]
                 },
-                "query": "query SearchResultsListingsGridQuery($filters: [FilterInput!]!, $channel: Channel!, $page: Int, $sortBy: SearchResultsSort, $listingType: [ListingType!], $searchId: String!, $featureFlags: [FeatureFlag]) {\n  searchResults(\n    input: {facets: [], filters: $filters, channel: $channel, page: $page, sortBy: $sortBy, listingType: $listingType, searchId: $searchId, featureFlags: $featureFlags}\n  ) {\n    listings {\n      ... on SearchListing {\n        type\n        advertId\n        title\n        subTitle\n        attentionGrabber\n        price\n        vehicleLocation\n        images\n        dealerLink\n        badges {\n          type\n          displayText\n        }\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}"
+                "query": "query SearchResultsListingsGridQuery($filters: [FilterInput!]!, $channel: Channel!, $page: Int, $sortBy: SearchResultsSort, $listingType: [ListingType!], $searchId: String!, $featureFlags: [FeatureFlag]) {\n  searchResults(\n    input: {facets: [], filters: $filters, channel: $channel, page: $page, sortBy: $sortBy, listingType: $listingType, searchId: $searchId, featureFlags: $featureFlags}\n  ) {\n    listings {\n      ... on SearchListing {\n        type\n        advertId\n        title\n        subTitle\n        attentionGrabber\n        price\n        vehicleLocation\n        images\n        dealerLink\n        badges {\n          type\n          displayText\n        }\n        trackingContext {\n          advertContext {\n            make\n            model\n            price\n          }\n        }\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}"
             }
         ]
 
@@ -169,3 +169,81 @@ class AutoTraderClient:
             else:
                 logger.error(f"AutoTrader API error fetching trims: {response.status}")
                 return []
+
+    async def fetch_advert_details(self, advert_id, make=None, model=None, exact_price=None):
+        """
+        Fetches the advert details using GraphQL (filtering by exact price)
+        or falls back to HTML scraping if GraphQL fails.
+        """
+        if make and exact_price:
+            try:
+                url = "https://www.autotrader.co.uk/at-graphql?opname=SearchFormFacetsQuery"
+                advert_query = {
+                    "minPrice": exact_price,
+                    "maxPrice": exact_price,
+                    "make": [make]
+                }
+                if model:
+                    advert_query["model"] = [model]
+                
+                payload = [{
+                    "operationName": "SearchFormFacetsQuery",
+                    "variables": {"advertQuery": advert_query},
+                    "query": "query SearchFormFacetsQuery($advertQuery: AdvertQuery!) { search { adverts(advertQuery: $advertQuery) { advertList { adverts { id price colour year specification { make model trim bodyType fuel transmission } } } } } }"
+                }]
+                
+                session = await self.get_session()
+                async with session.post(url, json=payload) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        adverts = data[0].get('data', {}).get('search', {}).get('adverts', {}).get('advertList', {}).get('adverts', [])
+                        if adverts is None:
+                            adverts = []
+                        # Find the matching advert
+                        for adv in adverts:
+                            if adv.get("id") == advert_id:
+                                colour = adv.get("colour", "Unknown")
+                                spec_dict = adv.get("specification", {})
+                                specs = []
+                                if spec_dict:
+                                    for k, v in spec_dict.items():
+                                        if v and k not in ["make", "model"]:
+                                            specs.append(f"{k.capitalize()}: {v}")
+                                return {"colour": colour, "specs": sorted(specs), "fallback": False}
+            except Exception as e:
+                logger.error(f"GraphQL details fetch failed: {e}. Falling back to HTML scrape.")
+
+        # Fallback HTML scraping
+        url = f"https://www.autotrader.co.uk/car-details/{advert_id}"
+        session = await self.get_session()
+        async with session.get(url) as response:
+            if response.status != 200:
+                logger.error(f"Failed to fetch advert HTML for {advert_id}: {response.status}")
+                return {"colour": "Unknown", "specs": [], "fallback": True}
+            
+            html = await response.text()
+            import re
+            
+            # Look for colour
+            colour_match = re.search(r'\\?"label\\?":\\?"Body colour\\?",\\?"value\\?":\\?"([^"\\]+)\\?"', html)
+            if not colour_match:
+                colour_match = re.search(r'\\?"colour\\?":\\?"([^"\\]+)\\?"', html)
+            colour = colour_match.group(1) if colour_match else "Unknown"
+            
+            # Extract all key-value specs
+            specs = []
+            matches = re.finditer(r'\\?"label\\?":\\?"([^"\\]+)\\?",\\?"value\\?":\\?"([^"\\]+)\\?"', html)
+            for m in matches:
+                label = m.group(1)
+                value = m.group(2)
+                if label not in ["Make", "Model", "Year", "Registration", "Body colour"]:
+                    specs.append(f"{label}: {value}")
+            
+            # Deduplicate and sort
+            specs = sorted(list(set(specs)))
+            
+            return {
+                "colour": colour,
+                "specs": specs,
+                "fallback": True
+            }
