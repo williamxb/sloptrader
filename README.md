@@ -15,6 +15,20 @@ Whether you are a seasoned dealership aficionado or a casual buyer navigating th
 
 ### Getting Started
 
-To embark on this transformative journey, simply clone the repository, install the dependencies, and populate your `.env` file. As we navigate the labyrinthine corridors of the AutoTrader APIs, it becomes abundantly clear that SlopTrader is more than a bot—it is a paradigm shift.
+To embark on this transformative journey, simply clone the repository, install the dependencies, and populate your `.env` file with your Discord token. 
+
+```bash
+docker compose up -d
+```
+
+### Navigating the Interface
+
+Once the bot is orchestrating its multifaceted backend processes, you can seamlessly tap into its rich feature set using our intuitive suite of slash commands:
+
+- `/addsearch` — It's not just a search; it's a deeply personalized alignment with your automotive goals. Delve into the autocomplete menus to curate the exact make, model, and trim that resonate with your lifestyle.
+- `/listsearches` — Unlock a comprehensive, holistic overview of your active automotive pipelines.
+- `/removesearch` — Seamlessly decouple a search from your channel's tapestry when your journey reaches its natural conclusion.
+
+As we navigate the labyrinthine corridors of the AutoTrader APIs, it becomes abundantly clear that SlopTrader is more than a bot—it is a paradigm shift.
 
 *In conclusion, let SlopTrader be the beacon that illuminates your path to vehicular nirvana.*
